@@ -4,7 +4,7 @@ import { fetchRepairOrder } from "./tekmetricFetch.js";
 console.log("🚀 VCA booting…");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = Number(process.env.PORT) || 8080;
 
 /* =======================================================
    1. Sidebar UI Route
@@ -70,10 +70,14 @@ app.get("/", async (req, res) => {
             padding: 5px;
           }
 
+          ul {
+            margin: 5px 0 10px 20px;
+          }
+
           .disclaimer {
             font-size: 12px;
             color: gray;
-            margin-top: 5px;
+            margin-top: 8px;
           }
 
           .loading {
@@ -90,10 +94,10 @@ app.get("/", async (req, res) => {
         <!-- Tabs -->
         <div class="tabs">
           <div class="tab active" id="advisorTab" onclick="showTab('advisor')">
-            Advisor View
+            Advisor
           </div>
           <div class="tab" id="customerTab" onclick="showTab('customer')">
-            Customer View
+            Customer
           </div>
         </div>
 
@@ -116,45 +120,82 @@ app.get("/", async (req, res) => {
             }
           }
 
+          function renderList(items = []) {
+            if (!Array.isArray(items) || items.length === 0) {
+              return "<p>Not available yet.</p>";
+            }
+
+            return (
+              "<ul>" +
+              items.map((item) => "<li>" + item + "</li>").join("") +
+              "</ul>"
+            );
+          }
+
+          function renderInternalNotes(notes = {}) {
+            if (!notes || typeof notes !== "object") {
+              return "<p>Not available yet.</p>";
+            }
+
+            let html = "";
+
+            for (const [category, items] of Object.entries(notes)) {
+              html +=
+                "<h4 style=\"margin-top:10px;\">" +
+                category +
+                "</h4>" +
+                renderList(items);
+            }
+
+            return html;
+          }
+
           function renderAdvisor() {
             if (!vcaData) return;
 
             const intel = vcaData.intelligence || {};
 
-            document.getElementById("output").innerHTML = `
-              <details class="section">
-                <summary>Buying Profile</summary>
-                <p>${intel.buyingProfile || "Not available yet."}</p>
-              </details>
-
-              <details class="section" open>
-                <summary>RO Notes (Copy/Paste)</summary>
-                <p>${intel.roNotes || "Not available yet."}</p>
-              </details>
-
-              <details class="section">
-                <summary>Internal Notes</summary>
-                <pre>${JSON.stringify(intel.internalNotes || {}, null, 2)}</pre>
-              </details>
-
-              <details class="section">
-                <summary>Sales Script</summary>
-                <p>${intel.salesScript || "Not available yet."}</p>
-              </details>
-
-              <details class="section">
-                <summary>Follow Up Schedule</summary>
-                <pre>${JSON.stringify(intel.followUpSchedule || {}, null, 2)}</pre>
-              </details>
-
-              <details class="section">
-                <summary>Additional Opportunities (AI Suggested)</summary>
-                <p>${intel.aiSuggestedOpportunities || "None yet."}</p>
-                <div class="disclaimer">
-                  Disclaimer: These opportunities are AI-generated suggestions based on available vehicle data.
-                </div>
-              </details>
-            `;
+            document.getElementById("output").innerHTML = [
+              "<!-- 1. Buying Profile -->",
+              "<details class=\"section\">",
+              "<summary>Buying Profile</summary>",
+              "<p>" + (intel.buyingProfile || "Not available yet.") + "</p>",
+              "</details>",
+              "<!-- 2. RO Notes -->",
+              "<details class=\"section\" open>",
+              "<summary>RO Notes (Copy/Paste)</summary>",
+              "<p>" + (intel.roNotes || "Not available yet.") + "</p>",
+              "</details>",
+              "<!-- 3. Internal Notes -->",
+              "<details class=\"section\">",
+              "<summary>Internal Notes</summary>",
+              renderInternalNotes(intel.internalNotes),
+              "<h4 style=\"margin-top:15px;\">Additional Opportunities</h4>",
+              renderList(intel.aiSuggestedOpportunities),
+              "<div class=\"disclaimer\">",
+              "Disclaimer: These opportunities are AI-generated suggestions based on available vehicle data.",
+              "</div>",
+              "</details>",
+              "<!-- 4. Sales Script -->",
+              "<details class=\"section\">",
+              "<summary>Sales Script</summary>",
+              "<p>" + (intel.salesScript || "Not available yet.") + "</p>",
+              "</details>",
+              "<!-- 5. Follow Up Schedule -->",
+              "<details class=\"section\">",
+              "<summary>Follow Up Schedule</summary>",
+              "<h4>6 Months</h4>",
+              renderList(
+                intel.followUpSchedule ? intel.followUpSchedule.sixMonth : null,
+              ),
+              "<h4>12 Months</h4>",
+              renderList(
+                intel.followUpSchedule
+                  ? intel.followUpSchedule.twelveMonth
+                  : null,
+              ),
+              "</details>",
+            ].join("");
           }
 
           function renderCustomer() {
@@ -162,19 +203,20 @@ app.get("/", async (req, res) => {
 
             const intel = vcaData.intelligence || {};
 
-            document.getElementById("output").innerHTML = `
-              <div class="section">
-                <h3>Customer Notes</h3>
-                <p>${intel.customerFacingNotes || "Not available yet."}</p>
-              </div>
-            `;
+            document.getElementById("output").innerHTML = [
+              "<div class=\"section\">",
+              "<h3>Customer Notes</h3>",
+              "<p>" +
+                (intel.customerFacingNotes || "Not available yet.") +
+                "</p>",
+              "</div>",
+            ].join("");
           }
 
           async function load() {
             const res = await fetch("/api/vca?roId=${roId}");
             vcaData = await res.json();
 
-            // Default load Advisor view first
             renderAdvisor();
           }
 
@@ -200,19 +242,33 @@ app.get("/api/vca", async (req, res) => {
 
     // TEMP MOCK INTELLIGENCE (until GPT wired back in)
     const intelligence = {
-      buyingProfile: "Buying profile will be generated by GPT soon.",
-      roNotes: "Short RO Notes will appear here.",
-      customerFacingNotes: "Customer-facing summary will appear here.",
+      buyingProfile:
+        "Value-focused customer who prioritizes safety and reliability; prefers clear, concise recommendations.",
+
+      roNotes:
+        "Customer requests a full safety check and approval before any additional work is started.",
+
+      customerFacingNotes:
+        "We completed your inspection and identified a few items to keep your vehicle safe and reliable. Let us know how you’d like to proceed.",
+
       internalNotes: {
-        safety: ["Example safety item"],
-        maintenance: ["Example maintenance item"],
+        safety: ["Front brake pads at 2mm", "Right headlight bulb out"],
+        maintenance: ["Oil change due", "Cabin air filter dirty"],
+        repair: ["Valve cover gasket seeping"],
       },
-      salesScript: "Sales script will appear here.",
+
+      salesScript:
+        "Based on today’s inspection, I recommend addressing the safety items first. We can also take care of the maintenance items to prevent future issues. Would you like me to put together a full estimate?",
+
       followUpSchedule: {
-        sixMonth: ["Inspection + fluid check"],
-        twelveMonth: ["Full maintenance review"],
+        sixMonth: ["Inspection + fluid check", "Tire rotation"],
+        twelveMonth: ["Full maintenance review", "Brake inspection"],
       },
-      aiSuggestedOpportunities: "None yet.",
+
+      aiSuggestedOpportunities: [
+        "Alignment check after brake service",
+        "Replace wiper blades before rainy season",
+      ],
     };
 
     res.json({
@@ -231,6 +287,6 @@ app.get("/api/vca", async (req, res) => {
 /* =======================================================
    Start Server
 ======================================================= */
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Listening on port ${PORT}`);
 });
