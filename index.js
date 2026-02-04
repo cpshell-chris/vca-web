@@ -1,5 +1,6 @@
 import express from "express";
 import { fetchRepairOrder } from "./tekmetricFetch.js";
+import { buildVcaIntelligence } from "./vcaIntelligence.js";
 
 console.log("🚀 VCA booting…");
 
@@ -78,7 +79,6 @@ function renderSidebarHTML(roId) {
       <h2>VCA Advisor Sidebar</h2>
       <p>Loading Repair Order <b>${roId}</b>…</p>
 
-      <!-- Tabs -->
       <div class="tabs">
         <div class="tab active" id="advisorTab" onclick="showTab('advisor')">
           Advisor
@@ -88,7 +88,6 @@ function renderSidebarHTML(roId) {
         </div>
       </div>
 
-      <!-- Output -->
       <div id="output" class="loading">Fetching VCA results…</div>
 
       <script>
@@ -112,92 +111,70 @@ function renderSidebarHTML(roId) {
             return "<p>Not available yet.</p>";
           }
 
-          return (
-            "<ul>" +
-            items.map((item) => "<li>" + item + "</li>").join("") +
-            "</ul>"
-          );
+          return "<ul>" + items.map(i => "<li>" + i + "</li>").join("") + "</ul>";
         }
 
         function renderInternalNotes(notes = {}, aiOps = []) {
-          if (!notes || typeof notes !== "object") {
-            return "<p>Not available yet.</p>";
-          }
-
           let html = "";
 
-          for (const [category, items] of Object.entries(notes)) {
-            html +=
-              "<h4 style='margin-top:10px;'>" +
-              category +
-              "</h4>" +
-              renderList(items);
+          for (const [category, items] of Object.entries(notes || {})) {
+            html += "<h4>" + category + "</h4>" + renderList(items);
           }
 
-          if (Array.isArray(aiOps) && aiOps.length > 0) {
+          if (Array.isArray(aiOps) && aiOps.length) {
             html +=
-              "<h4 style='margin-top:15px;'>Additional Opportunities</h4>" +
+              "<h4>Additional Opportunities</h4>" +
               renderList(aiOps) +
-              "<div class='disclaimer'>" +
-              "Disclaimer: These opportunities are AI-generated suggestions based on available vehicle data." +
-              "</div>";
+              "<div class='disclaimer'>AI-generated suggestions for consideration.</div>";
           }
 
-          return html;
+          return html || "<p>Not available yet.</p>";
         }
 
         function renderAdvisor() {
           if (!vcaData) return;
-
           const intel = vcaData.intelligence || {};
 
           document.getElementById("output").innerHTML = [
             "<details class='section'>",
             "<summary>Buying Profile</summary>",
-            "<p>" + (intel.buyingProfile || "Not available yet.") + "</p>",
+            "<p>" + (intel.buyingProfile || "") + "</p>",
             "</details>",
 
             "<details class='section' open>",
-            "<summary>RO Notes (Copy/Paste)</summary>",
-            "<p>" + (intel.roNotes || "Not available yet.") + "</p>",
+            "<summary>RO Notes</summary>",
+            "<p>" + (intel.roNotes || "") + "</p>",
             "</details>",
 
             "<details class='section'>",
             "<summary>Internal Notes</summary>",
-            renderInternalNotes(
-              intel.internalNotes,
-              intel.aiSuggestedOpportunities
-            ),
+            renderInternalNotes(intel.internalNotes, intel.aiSuggestedOpportunities),
             "</details>",
 
             "<details class='section'>",
             "<summary>Sales Script</summary>",
-            "<p>" + (intel.salesScript || "Not available yet.") + "</p>",
+            "<p>" + (intel.salesScript || "") + "</p>",
             "</details>",
 
             "<details class='section'>",
-            "<summary>Follow Up Schedule</summary>",
+            "<summary>Follow-Up Schedule</summary>",
             "<h4>6 Months</h4>",
             renderList(intel.followUpSchedule?.sixMonth),
             "<h4>12 Months</h4>",
             renderList(intel.followUpSchedule?.twelveMonth),
-            "</details>",
+            "</details>"
           ].join("");
         }
 
         function renderCustomer() {
           if (!vcaData) return;
-
           const intel = vcaData.intelligence || {};
 
-          document.getElementById("output").innerHTML = [
-            "<div class='section'>",
-            "<h3>Customer Notes</h3>",
-            "<p>" +
-              (intel.customerFacingNotes || "Not available yet.") +
-              "</p>",
-            "</div>",
-          ].join("");
+          document.getElementById("output").innerHTML =
+            "<div class='section'>" +
+            "<h3>Customer Notes</h3>" +
+            "<p>" + (intel.customerFacingNotes || "") + "</p>" +
+            "</div>";
         }
 
         async function load() {
@@ -214,28 +191,16 @@ function renderSidebarHTML(roId) {
 }
 
 /* =======================================================
-   1. Sidebar Route
+   Routes
 ======================================================= */
-app.get("/", async (req, res) => {
+app.get("/", (req, res) => {
   const roId = req.query.roId;
-
   if (!roId) {
-    return res.send(`
-      <html>
-        <body style="font-family:Arial;padding:20px;">
-          <h2>VCA Advisor Sidebar</h2>
-          <p>Add <code>?roId=XXXXX</code> to the URL.</p>
-        </body>
-      </html>
-    `);
+    return res.send("<h2>VCA Advisor Sidebar</h2><p>Add ?roId=XXXXX</p>");
   }
-
   res.send(renderSidebarHTML(roId));
 });
 
-/* =======================================================
-   2. Backend API Route
-======================================================= */
 app.get("/api/vca", async (req, res) => {
   try {
     const roId = req.query.roId;
@@ -244,42 +209,11 @@ app.get("/api/vca", async (req, res) => {
     }
 
     const repairOrder = await fetchRepairOrder(roId);
+    const intelligence = await buildVcaIntelligence({ repairOrder });
 
-    const intelligence = {
-      buyingProfile:
-        "Value-focused customer who prioritizes safety and reliability; prefers clear, concise recommendations.",
-
-      roNotes:
-        "Customer requests a full safety check and approval before any additional work is started.",
-
-      customerFacingNotes:
-        "We completed your inspection and identified a few items to keep your vehicle safe and reliable. Let us know how you’d like to proceed.",
-
-      internalNotes: {
-        safety: ["Front brake pads at 2mm", "Right headlight bulb out"],
-        maintenance: ["Oil change due", "Cabin air filter dirty"],
-        repair: ["Valve cover gasket seeping"],
-      },
-
-      salesScript:
-        "Based on today’s inspection, I recommend addressing the safety items first. We can also take care of the maintenance items to prevent future issues. Would you like me to put together a full estimate?",
-
-      followUpSchedule: {
-        sixMonth: ["Inspection + fluid check", "Tire rotation"],
-        twelveMonth: ["Full maintenance review", "Brake inspection"],
-      },
-
-      aiSuggestedOpportunities: [
-        "Alignment check after brake service",
-        "Replace wiper blades before rainy season",
-      ],
-    };
-
-    res.json({
-      context: { repairOrder },
-      intelligence,
-    });
+    res.json({ context: { repairOrder }, intelligence });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
