@@ -1,13 +1,12 @@
-import OpenAI from "openai";
-
 let openaiClient;
 
-function getOpenAIClient() {
+async function getOpenAIClient() {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("Missing OPENAI_API_KEY");
   }
 
   if (!openaiClient) {
+    const { default: OpenAI } = await import("openai");
     openaiClient = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -69,7 +68,7 @@ Constraints:
 `;
 
   try {
-    const openai = getOpenAIClient();
+    const openai = await getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.2,

@@ -1,6 +1,4 @@
 import express from "express";
-import { buildVcaIntelligence } from "./vcaIntelligence.js";
-
 console.log("🚀 VCA booting…");
 
 const app = express();
@@ -207,8 +205,9 @@ app.get("/api/vca", async (req, res) => {
       return res.status(400).json({ error: "Missing roId" });
     }
 
-    // Import Tekmetric only at request time to prevent startup crashes
+    // Import dependencies only at request time to prevent startup crashes
     const { fetchRepairOrder } = await import("./tekmetricFetch.js");
+    const { buildVcaIntelligence } = await import("./vcaIntelligence.js");
 
     const repairOrder = await fetchRepairOrder(roId);
     const intelligence = await buildVcaIntelligence({ repairOrder });
