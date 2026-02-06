@@ -19,6 +19,24 @@ async function getOpenAIClient() {
 
   return openaiClient;
 }
+function buildKnowledgeContext() {
+  return `
+Advisor Principles:
+${JSON.stringify(advisorPrinciples, null, 2)}
+
+Customer Psychology:
+${JSON.stringify(customerPsychology, null, 2)}
+
+Maintenance Logic:
+${JSON.stringify(maintenanceLogic, null, 2)}
+
+Shop Philosophy:
+${JSON.stringify(shopPhilosophy, null, 2)}
+
+Compliance Rules:
+${JSON.stringify(complianceRules, null, 2)}
+`;
+}
 
 /**
  * Build VCA intelligence from Tekmetric context.
@@ -30,8 +48,13 @@ export async function buildVcaIntelligence({ repairOrder }) {
     throw new Error("Missing repairOrder context");
   }
 
-  const systemPrompt = `
+const systemPrompt = `
 You are an experienced automotive service advisor.
+
+You MUST operate using the following knowledge and constraints.
+You may not violate or contradict them.
+
+${buildKnowledgeContext()}
 
 Rules you MUST follow:
 - Use ONLY the provided repair order data.
@@ -42,6 +65,7 @@ Rules you MUST follow:
 - Return ONLY valid JSON.
 - Do not include markdown or commentary.
 `;
+
 
   const userPrompt = `
 Repair Order Data:
