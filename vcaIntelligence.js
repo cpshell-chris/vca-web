@@ -1,3 +1,8 @@
+import advisorPrinciples from "./knowledge/advisorPrinciples.js";
+import customerPsychology from "./knowledge/customerPsychology.js";
+import maintenanceLogic from "./knowledge/maintenanceLogic.js";
+import shopPhilosophy from "./knowledge/shopPhilosophy.js";
+import complianceRules from "./knowledge/complianceRules.js";
 let openaiClient;
 
 async function getOpenAIClient() {
